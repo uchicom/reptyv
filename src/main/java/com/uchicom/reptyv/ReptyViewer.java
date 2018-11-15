@@ -1,0 +1,196 @@
+package com.uchicom.reptyv;
+
+import java.awt.BorderLayout;
+import java.awt.Cursor;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
+import java.nio.file.StandardWatchEventKinds;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchEvent.Kind;
+import java.nio.file.WatchEvent.Modifier;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+
+import org.apache.pdfbox.io.MemoryUsageSetting;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.rendering.PDFRenderer;
+import org.yaml.snakeyaml.Yaml;
+
+import com.uchicom.repty.Repty;
+import com.uchicom.repty.dto.Template;
+import com.uchicom.ui.FileOpener;
+import com.uchicom.ui.ImagePanel;
+import com.uchicom.ui.ResumeFrame;
+
+/**
+ * yamlを監視してリアルタイムに画面に表示する。
+ * 
+ * @author hex
+ *
+ */
+public class ReptyViewer extends ResumeFrame implements FileOpener {
+
+	private JTextField textField = new JTextField();
+	private ImagePanel panel = new ImagePanel();
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
+
+	private static final String CONF_FILE_PATH = "./conf/pdfv.properties";
+
+	public ReptyViewer() {
+		super(new File(CONF_FILE_PATH), "reptyv.window");
+		initComponents();
+	}
+
+	private void initComponents() {
+		setTitle("ReptyViewer 0.0.1");
+		setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+		FileOpener.installDragAndDrop(panel, this);
+		JPanel basePanel = new JPanel(new BorderLayout());
+		basePanel.add(new JScrollPane(panel), BorderLayout.CENTER);
+		basePanel.add(textField, BorderLayout.NORTH);
+		getContentPane().add(basePanel);
+		pack();
+	}
+
+	/**
+	 *
+	 * @param baseFile
+	 */
+	private void watch(File yamlFile) {
+		Thread thread = new Thread(() -> {
+			WatchKey key = null;
+			try {
+				WatchService service = FileSystems.getDefault().newWatchService();
+				regist(service, yamlFile);
+				while ((key = service.take()) != null) {
+
+					// スレッドの割り込み = 終了要求を判定する. 必要なのか不明
+					if (Thread.currentThread().isInterrupted()) {
+						throw new InterruptedException();
+					}
+					if (!key.isValid())
+						continue;
+					for (WatchEvent<?> event : key.pollEvents()) {
+						// eventではファイル名しかとれない
+						// 監視対象のフォルダを取得する必要がある
+						if (StandardWatchEventKinds.ENTRY_MODIFY.equals(event.kind())) {
+							update(yamlFile);
+						}
+					}
+					key.reset();
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+				key.cancel();
+			}
+		});
+		thread.setDaemon(false); // mainスレッドと運命を共に
+		thread.start();
+	}
+
+	/**
+	 * 監視サービスにファイルを登録する
+	 * 
+	 * @param service
+	 * @param file
+	 * @throws IOException
+	 */
+	public void regist(WatchService service, File file) throws IOException {
+		Path path = file.getParentFile().toPath();
+		path.register(service, new Kind[] { StandardWatchEventKinds.ENTRY_MODIFY }, new Modifier[] {});
+		update(file);
+	}
+
+	/**
+	 * ファイルを更新
+	 * 
+	 * @param yamlFile
+	 */
+	public void update(File yamlFile) {
+		try (FileInputStream fis = new FileInputStream(yamlFile)) {
+
+			Yaml yaml = new Yaml();
+			Template template = null;
+			template = yaml.loadAs(fis, Template.class);
+
+			Map<String, Object> paramMap = new HashMap<>();
+			try (PDDocument document = new PDDocument(MemoryUsageSetting.setupMainMemoryOnly());
+					Repty yamlPdf = new Repty(document, template);) {
+				// PDFドキュメントを作成
+				yamlPdf.init();
+				yamlPdf.addKeys(textField.getText().split(" "));
+				PDPage d = yamlPdf.createPage(paramMap);
+				document.addPage(d);
+				PDFRenderer renderer = new PDFRenderer(document);
+				panel.setImage(renderer.renderImageWithDPI(0, 72));
+				panel.repaint();
+			} catch (NoSuchFieldException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (SecurityException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (IllegalArgumentException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (IllegalAccessException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (NoSuchMethodException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (InvocationTargetException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	/*
+	 * (非 Javadoc)
+	 * 
+	 * @see com.uchicom.ui.FileOpener#open(java.util.List)
+	 */
+	@Override
+	public void open(List<File> fileList) {
+		setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+		if (fileList.size() > 0) {
+			try {
+				open(fileList.get(0));
+			} catch (IOException e) {
+				JOptionPane.showMessageDialog(this, e.getMessage());
+				e.printStackTrace();
+			}
+		}
+		setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
+	}
+
+	@Override
+	public void open(File file) throws IOException {
+		watch(file);
+	}
+
+}
