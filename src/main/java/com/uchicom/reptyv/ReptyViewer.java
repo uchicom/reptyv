@@ -2,6 +2,8 @@ package com.uchicom.reptyv;
 
 import java.awt.BorderLayout;
 import java.awt.Cursor;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -22,6 +24,7 @@ import java.util.Map;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
 
 import org.apache.pdfbox.io.MemoryUsageSetting;
@@ -46,6 +49,9 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 
 	private JTextField textField = new JTextField();
 	private ImagePanel panel = new ImagePanel();
+
+	private JTextArea editorText;
+	private JTextArea parameterText;
 	/**
 	 * 
 	 */
@@ -58,8 +64,42 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 		initComponents();
 	}
 
+	public ReptyViewer(JTextArea editorText, JTextArea parameterText) {
+		super(new File(CONF_FILE_PATH), "reptyv.window");
+		this.editorText = editorText;
+		this.parameterText = parameterText;
+		KeyListener keyListener = new KeyListener() {
+
+			@Override
+			public void keyTyped(KeyEvent e) {
+				System.out.println(e);
+				// TODO Auto-generated method stub
+
+			}
+
+			@Override
+			public void keyReleased(KeyEvent e) {
+				System.out.println(e);
+				// TODO Auto-generated method stub
+
+			}
+
+			@Override
+			public void keyPressed(KeyEvent e) {
+				System.out.println(e);
+				if (KeyEvent.VK_F5 == e.getKeyCode()) {
+					update(editorText.getText(), parameterText.getText());
+				}
+
+			}
+		};
+		parameterText.addKeyListener(keyListener);
+		editorText.addKeyListener(keyListener);
+		initComponents();
+	}
+
 	private void initComponents() {
-		setTitle("ReptyViewer 0.0.1");
+		setTitle("ReptyViewer 0.0.2");
 		setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 		FileOpener.installDragAndDrop(panel, this);
 		JPanel basePanel = new JPanel(new BorderLayout());
@@ -166,6 +206,57 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 			e.printStackTrace();
 		} catch (IOException e) {
 			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * ファイルを更新
+	 * 
+	 * @param yamlFile
+	 */
+	public void update(String yamlText, String parameterText) {
+		Map<String, Object> paramMap = new HashMap<>();
+		for (String line : parameterText.split("\n")) {
+			String[] splits = line.split("=");
+			paramMap.put(splits[0], splits[1]);
+
+		}
+
+		Yaml yaml = new Yaml();
+		Template template = null;
+		template = yaml.loadAs(yamlText, Template.class);
+
+		try (PDDocument document = new PDDocument(MemoryUsageSetting.setupMainMemoryOnly());
+				Repty yamlPdf = new Repty(document, template);) {
+			// PDFドキュメントを作成
+			yamlPdf.init();
+			yamlPdf.addKeys(textField.getText().split(" "));
+			PDPage d = yamlPdf.createPage(paramMap);
+			document.addPage(d);
+			PDFRenderer renderer = new PDFRenderer(document);
+			panel.setImage(renderer.renderImageWithDPI(0, 72));
+			panel.repaint();
+		} catch (NoSuchFieldException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (SecurityException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IllegalArgumentException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IllegalAccessException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (NoSuchMethodException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (InvocationTargetException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
 		}
 	}
 
