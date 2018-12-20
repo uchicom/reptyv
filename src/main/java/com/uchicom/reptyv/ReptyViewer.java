@@ -212,7 +212,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 	/**
 	 * ファイルを更新
 	 * 
-	 * @param yamlFile
+	 * @param yamlText
+         * @param parameterText 
 	 */
 	public void update(String yamlText, String parameterText) {
 		Map<String, Object> paramMap = new HashMap<>();
