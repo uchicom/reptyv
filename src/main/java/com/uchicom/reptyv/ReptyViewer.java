@@ -99,7 +99,7 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 	}
 
 	private void initComponents() {
-		setTitle("ReptyViewer 0.0.2");
+		setTitle("ReptyViewer");
 		setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 		FileOpener.installDragAndDrop(panel, this);
 		JPanel basePanel = new JPanel(new BorderLayout());

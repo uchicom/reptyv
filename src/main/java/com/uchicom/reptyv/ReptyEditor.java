@@ -22,7 +22,7 @@ public class ReptyEditor extends ResumeDialog {
 	}
 
 	private void initComponents() {
-		setTitle("ReptyEditor 0.0.1");
+		setTitle("ReptyEditor");
 		getContentPane().add(new JScrollPane(textArea));
 		pack();
 	}

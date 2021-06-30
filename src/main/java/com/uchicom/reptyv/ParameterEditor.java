@@ -22,7 +22,7 @@ public class ParameterEditor extends ResumeDialog {
 	}
 
 	private void initComponents() {
-		setTitle("ParameterEditor 0.0.1");
+		setTitle("ParameterEditor");
 		getContentPane().add(new JScrollPane(textArea));
 		pack();
 	}
