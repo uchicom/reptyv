@@ -50,8 +50,6 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 	private JTextField textField = new JTextField();
 	private ImagePanel panel = new ImagePanel();
 
-	private JTextArea editorText;
-	private JTextArea parameterText;
 	/**
 	 * 
 	 */
@@ -66,8 +64,6 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 
 	public ReptyViewer(JTextArea editorText, JTextArea parameterText) {
 		super(new File(CONF_FILE_PATH), "reptyv.window");
-		this.editorText = editorText;
-		this.parameterText = parameterText;
 		KeyListener keyListener = new KeyListener() {
 
 			@Override
@@ -173,7 +169,7 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 			template = yaml.loadAs(fis, Template.class);
 
 			Map<String, Object> paramMap = new HashMap<>();
-			try (PDDocument document = new PDDocument(MemoryUsageSetting.setupMainMemoryOnly());
+			try (PDDocument document = new PDDocument();
 					Repty yamlPdf = new Repty(document, template);) {
 				// PDFドキュメントを作成
 				yamlPdf.init();
@@ -218,6 +214,9 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 	public void update(String yamlText, String parameterText) {
 		Map<String, Object> paramMap = new HashMap<>();
 		for (String line : parameterText.split("\n")) {
+			if (line.isBlank()) {
+				continue;
+			}
 			String[] splits = line.split("=");
 			paramMap.put(splits[0], splits[1]);
 
@@ -227,7 +226,7 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 		Template template = null;
 		template = yaml.loadAs(yamlText, Template.class);
 
-		try (PDDocument document = new PDDocument(MemoryUsageSetting.setupMainMemoryOnly());
+		try (PDDocument document = new PDDocument();
 				Repty yamlPdf = new Repty(document, template);) {
 			// PDFドキュメントを作成
 			yamlPdf.init();
