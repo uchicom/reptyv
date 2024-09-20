@@ -27,7 +27,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 
-import org.apache.pdfbox.io.MemoryUsageSetting;
+import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.rendering.PDFRenderer;
@@ -49,6 +49,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 
 	private JTextField textField = new JTextField();
 	private ImagePanel panel = new ImagePanel();
+	private File draft;
+	private JTextArea parameterText;
 
 	/**
 	 * 
@@ -64,6 +66,7 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 
 	public ReptyViewer(JTextArea editorText, JTextArea parameterText) {
 		super(new File(CONF_FILE_PATH), "reptyv.window");
+		this.parameterText = parameterText;
 		KeyListener keyListener = new KeyListener() {
 
 			@Override
@@ -162,42 +165,14 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 	 * @param yamlFile
 	 */
 	public void update(File yamlFile) {
+		Map<String, Object> paramMap = createParameterMap();
 		try (FileInputStream fis = new FileInputStream(yamlFile)) {
 
 			Yaml yaml = new Yaml();
 			Template template = null;
 			template = yaml.loadAs(fis, Template.class);
 
-			Map<String, Object> paramMap = new HashMap<>();
-			try (PDDocument document = new PDDocument();
-					Repty yamlPdf = new Repty(document, template);) {
-				// PDFドキュメントを作成
-				yamlPdf.init();
-				yamlPdf.addKeys(textField.getText().split(" "));
-				PDPage d = yamlPdf.createPage(paramMap);
-				document.addPage(d);
-				PDFRenderer renderer = new PDFRenderer(document);
-				panel.setImage(renderer.renderImageWithDPI(0, 72));
-				panel.repaint();
-			} catch (NoSuchFieldException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (SecurityException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (IllegalArgumentException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (IllegalAccessException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (NoSuchMethodException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (InvocationTargetException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
+			draw(template, paramMap);
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
@@ -205,35 +180,29 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 		}
 	}
 
-	/**
-	 * ファイルを更新
-	 * 
-	 * @param yamlText
-         * @param parameterText 
-	 */
-	public void update(String yamlText, String parameterText) {
-		Map<String, Object> paramMap = new HashMap<>();
-		for (String line : parameterText.split("\n")) {
-			if (line.isBlank()) {
-				continue;
-			}
-			String[] splits = line.split("=");
-			paramMap.put(splits[0], splits[1]);
-
-		}
-
-		Yaml yaml = new Yaml();
-		Template template = null;
-		template = yaml.loadAs(yamlText, Template.class);
-
-		try (PDDocument document = new PDDocument();
-				Repty yamlPdf = new Repty(document, template);) {
+	void draw(Template template, Map<String, Object> paramMap) {
+		
+		try (PDDocument document =  this.draft != null ? Loader.loadPDF(draft) : new PDDocument();
+			Repty yamlPdf = new Repty(document, template);) {
 			// PDFドキュメントを作成
 			yamlPdf.init();
 			yamlPdf.addKeys(textField.getText().split(" "));
-			PDPage d = yamlPdf.createPage(paramMap);
-			document.addPage(d);
+			if (draft == null) {
+				PDPage d = yamlPdf.createPage(paramMap);
+				document.addPage(d);
+			} else {
+				PDPage d = document.getPage(0);
+				yamlPdf.appendPage(paramMap, d);
+			}
 			PDFRenderer renderer = new PDFRenderer(document);
+			yamlPdf.pdFontMap.entrySet().forEach(entry->{
+				try {
+					entry.getValue().subset();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			});
+
 			panel.setImage(renderer.renderImageWithDPI(0, 72));
 			panel.repaint();
 		} catch (NoSuchFieldException e) {
@@ -254,10 +223,38 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 		} catch (InvocationTargetException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		} catch (IOException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
 		}
+	}
+
+	Map<String, Object> createParameterMap() {
+		Map<String, Object> paramMap = new HashMap<>();
+		for (String line : parameterText.getText().split("\n")) {
+			if (line.isBlank()) {
+				continue;
+			}
+			String[] splits = line.split("=");
+			paramMap.put(splits[0], splits[1]);
+
+		}
+		return paramMap;
+	}
+
+	/**
+	 * ファイルを更新
+	 * 
+	 * @param yamlText
+         * @param parameterText 
+	 */
+	public void update(String yamlText, String parameterText) {
+		Map<String, Object> paramMap = createParameterMap();
+
+		Yaml yaml = new Yaml();
+		Template template = null;
+		template = yaml.loadAs(yamlText, Template.class);
+
+		draw(template, paramMap);
 	}
 
 	/*
@@ -281,7 +278,12 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 
 	@Override
 	public void open(File file) throws IOException {
-		watch(file);
+		String filename = file.getName();
+		if (filename.matches(".*\\.[yY][aA]?[mM][lL]$")) {
+			watch(file);
+		} else if (filename.matches(".*\\.[pP][dD][fF]$")) {
+			this.draft = file;
+		}
 	}
 
 }
