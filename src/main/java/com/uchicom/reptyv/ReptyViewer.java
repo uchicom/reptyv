@@ -14,11 +14,13 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
+import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.HashMap;
@@ -110,6 +112,9 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
             System.out.println(e);
             if (KeyEvent.VK_F5 == e.getKeyCode()) {
               waitingCursor(() -> update(editorText.getText(), parameterText.getText()));
+            } else if (KeyEvent.VK_S == e.getKeyCode()
+                && (InputEvent.CTRL_DOWN_MASK & e.getModifiersEx()) == InputEvent.CTRL_DOWN_MASK) {
+              waitingCursor(() -> save(new File(templatePathTextField.getText())));
             }
           }
         };
@@ -369,5 +374,26 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 
   boolean isDisplayDraft() {
     return draft != null && draftDisplayCheckBox.isSelected();
+  }
+
+  void save(File file) {
+    if (editorText.getText().isBlank()) {
+      JOptionPane.showMessageDialog(this, "No data.");
+      return;
+    }
+    if (file.exists()) {
+      int result =
+          JOptionPane.showConfirmDialog(this, "Overwrite?", "Overwrite", JOptionPane.YES_NO_OPTION);
+      if (result != JOptionPane.YES_OPTION) {
+        return;
+      }
+    }
+    try (FileOutputStream fos = new FileOutputStream(file)) {
+      fos.write(editorText.getText().getBytes("UTF-8"));
+      fos.flush();
+    } catch (IOException e) {
+      JOptionPane.showMessageDialog(this, e.getMessage());
+      e.printStackTrace();
+    }
   }
 }
