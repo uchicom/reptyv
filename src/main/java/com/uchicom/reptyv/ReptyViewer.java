@@ -8,6 +8,12 @@ import com.uchicom.ui.ImagePanel;
 import com.uchicom.ui.ResumeFrame;
 import java.awt.BorderLayout;
 import java.awt.Cursor;
+import java.awt.Font;
+import java.awt.GraphicsEnvironment;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.io.File;
@@ -26,6 +32,8 @@ import java.nio.file.WatchService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -52,6 +60,12 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
   private JTextArea parameterText;
   private JTextArea editorText;
 
+  // 設定
+  JComboBox<FontDisplayDto> editorFontComboBox;
+  JComboBox<FontDisplayDto> parameterFontComboBox;
+  JTextField editorFontSizeTextField;
+  JTextField parameterFontSizeTextField;
+
   /** */
   private static final long serialVersionUID = 1L;
 
@@ -61,6 +75,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
     super(new File(CONF_FILE_PATH), "reptyv");
     this.editorText = new JTextArea();
     this.parameterText = new JTextArea();
+    this.editorFontSizeTextField = new JTextField();
+    this.parameterFontSizeTextField = new JTextField();
     KeyListener keyListener =
         new KeyListener() {
 
@@ -88,6 +104,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
         };
     parameterText.addKeyListener(keyListener);
     editorText.addKeyListener(keyListener);
+    editorFontComboBox = createFontComboBox(editorText, editorFontSizeTextField);
+    parameterFontComboBox = createFontComboBox(parameterText, parameterFontSizeTextField);
     initComponents();
   }
 
@@ -110,9 +128,73 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
     JTabbedPane ctrlPanel = new JTabbedPane();
     ctrlPanel.addTab("Editor", new JScrollPane(editorText));
     ctrlPanel.addTab("Parameter", new JScrollPane(parameterText));
+    ctrlPanel.addTab("Config", createConfigPanel());
     splitPane.setRightComponent(ctrlPanel);
     getContentPane().add(splitPane);
     pack();
+  }
+
+  JPanel createConfigPanel() {
+    JPanel configPanel = new JPanel(new GridBagLayout());
+    GridBagConstraints gbc = new GridBagConstraints();
+    configPanel.add(new JLabel("Editor Font"), gbc);
+    gbc.gridy = 1;
+    configPanel.add(new JLabel("Parameter Font"), gbc);
+    gbc.gridx = 1;
+    gbc.gridy = 0;
+    configPanel.add(editorFontComboBox, gbc);
+    gbc.gridy = 1;
+    configPanel.add(parameterFontComboBox, gbc);
+    gbc.gridx = 2;
+    gbc.gridy = 0;
+    configPanel.add(editorFontSizeTextField, gbc);
+    gbc.gridy = 1;
+    configPanel.add(parameterFontSizeTextField, gbc);
+    return configPanel;
+  }
+
+  JComboBox<FontDisplayDto> createFontComboBox(JTextArea textArea, JTextField fontSizeTextField) {
+    Font font = textArea.getFont();
+    Font[] fonts = GraphicsEnvironment.getLocalGraphicsEnvironment().getAllFonts();
+    FontDisplayDto[] fontDisplayDtos = new FontDisplayDto[fonts.length];
+    int selectIndex = -1;
+    for (int i = 0; i < fonts.length; i++) {
+      FontDisplayDto fontDisplayDto = new FontDisplayDto();
+      fontDisplayDto.font = fonts[i];
+      fontDisplayDtos[i] = fontDisplayDto;
+      if (fontDisplayDto.font.getFontName().equals(font.getFontName())) {
+        selectIndex = i;
+      }
+    }
+    JComboBox<FontDisplayDto> comboBox = new JComboBox<>(fontDisplayDtos);
+    comboBox.setSelectedIndex(selectIndex);
+    comboBox.addActionListener(
+        e -> {
+          FontDisplayDto fontDisplayDto = (FontDisplayDto) comboBox.getSelectedItem();
+          textArea.setFont(
+              fontDisplayDto.font.deriveFont(Float.parseFloat(fontSizeTextField.getText())));
+        });
+    fontSizeTextField.setText(String.valueOf(font.getSize()));
+    fontSizeTextField.addFocusListener(
+        new FocusListener() {
+          @Override
+          public void focusGained(FocusEvent e) {
+            // TODO Auto-generated method stub
+
+          }
+
+          @Override
+          public void focusLost(FocusEvent e) {
+            FontDisplayDto fontDisplayDto = (FontDisplayDto) comboBox.getSelectedItem();
+            try {
+              textArea.setFont(
+                  fontDisplayDto.font.deriveFont(Float.parseFloat(fontSizeTextField.getText())));
+            } catch (NumberFormatException e1) {
+              fontSizeTextField.setText(String.valueOf(textArea.getFont().getSize()));
+            }
+          }
+        });
+    return comboBox;
   }
 
   /**
