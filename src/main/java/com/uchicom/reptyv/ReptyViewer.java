@@ -21,17 +21,10 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
-import java.nio.file.StandardWatchEventKinds;
-import java.nio.file.WatchEvent;
-import java.nio.file.WatchEvent.Kind;
-import java.nio.file.WatchEvent.Modifier;
-import java.nio.file.WatchKey;
-import java.nio.file.WatchService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -54,8 +47,8 @@ import org.yaml.snakeyaml.Yaml;
  */
 public class ReptyViewer extends ResumeFrame implements FileOpener {
 
-  private JTextField textField = new JTextField();
-  private ImagePanel panel = new ImagePanel();
+  private JTextField drawMapKeyTextField = new JTextField();
+  private ImagePanel imagePanel = new ImagePanel();
   private File draft;
   private JTextArea parameterText;
   private JTextArea editorText;
@@ -65,6 +58,7 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
   JComboBox<FontDisplayDto> parameterFontComboBox;
   JTextField editorFontSizeTextField;
   JTextField parameterFontSizeTextField;
+  JTextField templatePathTextField;
 
   /** */
   private static final long serialVersionUID = 1L;
@@ -77,6 +71,7 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
     this.parameterText = new JTextArea();
     this.editorFontSizeTextField = new JTextField();
     this.parameterFontSizeTextField = new JTextField();
+    this.templatePathTextField = new JTextField();
     KeyListener keyListener =
         new KeyListener() {
 
@@ -112,7 +107,7 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
   private void initComponents() {
     setTitle("ReptyV");
     setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-    FileOpener.installDragAndDrop(panel, this);
+    FileOpener.installDragAndDrop(imagePanel, this);
     JSplitPane splitPane = new JSplitPane();
     splitPane.setResizeWeight(0.7);
     String divider = config.getProperty("reptyv.divider");
@@ -122,8 +117,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
     splitPane.addPropertyChangeListener(
         e -> config.put("reptyv.divider", String.valueOf(splitPane.getDividerLocation())));
     JPanel basePanel = new JPanel(new BorderLayout());
-    basePanel.add(new JScrollPane(panel), BorderLayout.CENTER);
-    basePanel.add(textField, BorderLayout.NORTH);
+    basePanel.add(new JScrollPane(imagePanel), BorderLayout.CENTER);
+    basePanel.add(drawMapKeyTextField, BorderLayout.NORTH);
     splitPane.setLeftComponent(basePanel);
     JTabbedPane ctrlPanel = new JTabbedPane();
     ctrlPanel.addTab("Editor", new JScrollPane(editorText));
@@ -140,11 +135,15 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
     configPanel.add(new JLabel("Editor Font"), gbc);
     gbc.gridy = 1;
     configPanel.add(new JLabel("Parameter Font"), gbc);
+    gbc.gridy = 2;
+    configPanel.add(new JLabel("Template Path"), gbc);
     gbc.gridx = 1;
     gbc.gridy = 0;
     configPanel.add(editorFontComboBox, gbc);
     gbc.gridy = 1;
     configPanel.add(parameterFontComboBox, gbc);
+    gbc.gridy = 2;
+    configPanel.add(templatePathTextField, gbc);
     gbc.gridx = 2;
     gbc.gridy = 0;
     configPanel.add(editorFontSizeTextField, gbc);
@@ -198,57 +197,6 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
   }
 
   /**
-   * @param baseFile
-   */
-  private void watch(File yamlFile) {
-    Thread thread =
-        new Thread(
-            () -> {
-              WatchKey key = null;
-              try {
-                WatchService service = FileSystems.getDefault().newWatchService();
-                regist(service, yamlFile);
-                while ((key = service.take()) != null) {
-
-                  // スレッドの割り込み = 終了要求を判定する. 必要なのか不明
-                  if (Thread.currentThread().isInterrupted()) {
-                    throw new InterruptedException();
-                  }
-                  if (!key.isValid()) continue;
-                  for (WatchEvent<?> event : key.pollEvents()) {
-                    // eventではファイル名しかとれない
-                    // 監視対象のフォルダを取得する必要がある
-                    if (StandardWatchEventKinds.ENTRY_MODIFY.equals(event.kind())) {
-                      update(yamlFile);
-                    }
-                  }
-                  key.reset();
-                }
-              } catch (IOException e) {
-                e.printStackTrace();
-              } catch (InterruptedException e) {
-                e.printStackTrace();
-                key.cancel();
-              }
-            });
-    thread.setDaemon(false); // mainスレッドと運命を共に
-    thread.start();
-  }
-
-  /**
-   * 監視サービスにファイルを登録する
-   *
-   * @param service
-   * @param file
-   * @throws IOException
-   */
-  public void regist(WatchService service, File file) throws IOException {
-    Path path = file.getParentFile().toPath();
-    path.register(service, new Kind[] {StandardWatchEventKinds.ENTRY_MODIFY}, new Modifier[] {});
-    update(file);
-  }
-
-  /**
    * ファイルを更新
    *
    * @param yamlFile
@@ -275,7 +223,7 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
         Repty yamlPdf = new Repty(document, template); ) {
       // PDFドキュメントを作成
       yamlPdf.init();
-      yamlPdf.addKeys(textField.getText().split(" "));
+      yamlPdf.addKeys(drawMapKeyTextField.getText().split(" "));
       if (draft == null) {
         PDPage d = yamlPdf.createPage(paramMap);
         document.addPage(d);
@@ -296,8 +244,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
                 }
               });
 
-      panel.setImage(renderer.renderImageWithDPI(0, 72));
-      panel.repaint();
+      imagePanel.setImage(renderer.renderImageWithDPI(0, 72));
+      imagePanel.repaint();
     } catch (NoSuchFieldException e) {
       // TODO Auto-generated catch block
       e.printStackTrace();
@@ -372,9 +320,24 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
   public void open(File file) throws IOException {
     String filename = file.getName();
     if (filename.matches(".*\\.[yY][aA]?[mM][lL]$")) {
-      watch(file);
+      loadYaml(file);
     } else if (filename.matches(".*\\.[pP][dD][fF]$")) {
       this.draft = file;
+      update(editorText.getText(), parameterText.getText());
+    }
+  }
+
+  void loadYaml(File yamlFile) {
+    try (FileInputStream fis = new FileInputStream(yamlFile)) {
+      templatePathTextField.setText(yamlFile.getCanonicalPath());
+      editorText.setText(new String(fis.readAllBytes(), "UTF-8"));
+      Yaml yaml = new Yaml();
+      Template template = yaml.loadAs(editorText.getText(), Template.class);
+      drawMapKeyTextField.setText(
+          template.getDrawMap().keySet().stream().collect(Collectors.joining(" ")));
+      draw(template, createParameterMap());
+    } catch (IOException e) {
+      throw new RuntimeException(e);
     }
   }
 }
