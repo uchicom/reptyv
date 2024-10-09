@@ -8,27 +8,33 @@ import com.uchicom.ui.ImagePanel;
 import com.uchicom.ui.ResumeFrame;
 import java.awt.BorderLayout;
 import java.awt.Cursor;
+import java.awt.Font;
+import java.awt.GraphicsEnvironment;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
+import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
-import java.nio.file.StandardWatchEventKinds;
-import java.nio.file.WatchEvent;
-import java.nio.file.WatchEvent.Kind;
-import java.nio.file.WatchEvent.Modifier;
-import java.nio.file.WatchKey;
-import java.nio.file.WatchService;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import org.apache.pdfbox.Loader;
@@ -44,24 +50,45 @@ import org.yaml.snakeyaml.Yaml;
  */
 public class ReptyViewer extends ResumeFrame implements FileOpener {
 
-  private JTextField textField = new JTextField();
-  private ImagePanel panel = new ImagePanel();
-  private File draft;
-  private JTextArea parameterText;
+  JTextField drawMapKeyTextField = new JTextField();
+  ImagePanel imagePanel = new ImagePanel();
+  File draft;
+  JTextArea parameterText;
+  JTextArea editorText;
 
-  /** */
+  // 設定
+  JComboBox<FontDisplayDto> editorFontComboBox;
+  JComboBox<FontDisplayDto> parameterFontComboBox;
+  JTextField editorFontSizeTextField;
+  JTextField parameterFontSizeTextField;
+  JTextField draftPathTextField;
+  JTextField templatePathTextField;
+  JCheckBox draftDisplayCheckBox;
+
   private static final long serialVersionUID = 1L;
 
-  private static final String CONF_FILE_PATH = "./conf/pdfv.properties";
+  private static final String CONF_FILE_PATH = "./conf/reptyv.properties";
 
   public ReptyViewer() {
-    super(new File(CONF_FILE_PATH), "reptyv.window");
+    super(new File(CONF_FILE_PATH), "reptyv");
     initComponents();
   }
 
-  public ReptyViewer(JTextArea editorText, JTextArea parameterText) {
-    super(new File(CONF_FILE_PATH), "reptyv.window");
-    this.parameterText = parameterText;
+  private void initComponents() {
+    setTitle("ReptyV");
+    setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+
+    editorText = new JTextArea();
+    parameterText = new JTextArea();
+    editorFontSizeTextField = new JTextField();
+    parameterFontSizeTextField = new JTextField();
+    templatePathTextField = new JTextField();
+    draftPathTextField = new JTextField();
+    draftDisplayCheckBox = new JCheckBox("Display");
+    draftDisplayCheckBox.addItemListener(
+        e -> {
+          waitingCursor(() -> update(editorText.getText(), parameterText.getText()));
+        });
     KeyListener keyListener =
         new KeyListener() {
 
@@ -83,81 +110,123 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
           public void keyPressed(KeyEvent e) {
             System.out.println(e);
             if (KeyEvent.VK_F5 == e.getKeyCode()) {
-              update(editorText.getText(), parameterText.getText());
+              waitingCursor(() -> update(editorText.getText(), parameterText.getText()));
+            } else if (KeyEvent.VK_S == e.getKeyCode()
+                && (InputEvent.CTRL_DOWN_MASK & e.getModifiersEx()) == InputEvent.CTRL_DOWN_MASK) {
+              waitingCursor(() -> save(new File(templatePathTextField.getText())));
             }
           }
         };
     parameterText.addKeyListener(keyListener);
     editorText.addKeyListener(keyListener);
-    initComponents();
-  }
+    editorFontComboBox = createFontComboBox(editorText, editorFontSizeTextField);
+    parameterFontComboBox = createFontComboBox(parameterText, parameterFontSizeTextField);
 
-  private void initComponents() {
-    setTitle("ReptyViewer");
-    setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-    FileOpener.installDragAndDrop(panel, this);
+    FileOpener.installDragAndDrop(imagePanel, this);
+    JSplitPane splitPane = new JSplitPane();
+    splitPane.setResizeWeight(0.7);
+    String divider = config.getProperty("reptyv.divider");
+    if (divider != null) {
+      splitPane.setDividerLocation(Integer.valueOf(divider));
+    }
+    splitPane.addPropertyChangeListener(
+        e -> config.put("reptyv.divider", String.valueOf(splitPane.getDividerLocation())));
     JPanel basePanel = new JPanel(new BorderLayout());
-    basePanel.add(new JScrollPane(panel), BorderLayout.CENTER);
-    basePanel.add(textField, BorderLayout.NORTH);
-    getContentPane().add(basePanel);
+    basePanel.add(new JScrollPane(imagePanel), BorderLayout.CENTER);
+    basePanel.add(drawMapKeyTextField, BorderLayout.NORTH);
+    splitPane.setLeftComponent(basePanel);
+    JTabbedPane ctrlPanel = new JTabbedPane();
+    ctrlPanel.addTab("Editor", new JScrollPane(editorText));
+    ctrlPanel.addTab("Parameter", new JScrollPane(parameterText));
+    ctrlPanel.addTab("Config", new JScrollPane(createConfigPanel()));
+    splitPane.setRightComponent(ctrlPanel);
+    getContentPane().add(splitPane);
     pack();
   }
 
-  /**
-   * @param baseFile
-   */
-  private void watch(File yamlFile) {
-    Thread thread =
-        new Thread(
-            () -> {
-              WatchKey key = null;
-              try {
-                WatchService service = FileSystems.getDefault().newWatchService();
-                regist(service, yamlFile);
-                while ((key = service.take()) != null) {
-
-                  // スレッドの割り込み = 終了要求を判定する. 必要なのか不明
-                  if (Thread.currentThread().isInterrupted()) {
-                    throw new InterruptedException();
-                  }
-                  if (!key.isValid()) continue;
-                  for (WatchEvent<?> event : key.pollEvents()) {
-                    // eventではファイル名しかとれない
-                    // 監視対象のフォルダを取得する必要がある
-                    if (StandardWatchEventKinds.ENTRY_MODIFY.equals(event.kind())) {
-                      update(yamlFile);
-                    }
-                  }
-                  key.reset();
-                }
-              } catch (IOException e) {
-                e.printStackTrace();
-              } catch (InterruptedException e) {
-                e.printStackTrace();
-                key.cancel();
-              }
-            });
-    thread.setDaemon(false); // mainスレッドと運命を共に
-    thread.start();
+  JPanel createConfigPanel() {
+    JPanel configPanel = new JPanel(new GridBagLayout());
+    GridBagConstraints gbc = new GridBagConstraints();
+    configPanel.add(new JLabel("Editor Font"), gbc);
+    gbc.gridy = 1;
+    configPanel.add(new JLabel("Parameter Font"), gbc);
+    gbc.gridy = 2;
+    configPanel.add(new JLabel("Template Yaml Path"), gbc);
+    gbc.gridy = 3;
+    configPanel.add(new JLabel("Draft PDF Path"), gbc);
+    gbc.gridx = 1;
+    gbc.gridy = 0;
+    configPanel.add(editorFontComboBox, gbc);
+    gbc.gridy = 1;
+    configPanel.add(parameterFontComboBox, gbc);
+    gbc.gridy = 2;
+    configPanel.add(templatePathTextField, gbc);
+    gbc.gridy = 3;
+    configPanel.add(draftPathTextField, gbc);
+    gbc.gridx = 2;
+    gbc.gridy = 0;
+    configPanel.add(editorFontSizeTextField, gbc);
+    gbc.gridy = 1;
+    configPanel.add(parameterFontSizeTextField, gbc);
+    gbc.gridy = 3;
+    configPanel.add(draftDisplayCheckBox, gbc);
+    return configPanel;
   }
 
-  /**
-   * 監視サービスにファイルを登録する
-   *
-   * @param service
-   * @param file
-   * @throws IOException
-   */
-  public void regist(WatchService service, File file) throws IOException {
-    Path path = file.getParentFile().toPath();
-    path.register(service, new Kind[] {StandardWatchEventKinds.ENTRY_MODIFY}, new Modifier[] {});
-    update(file);
+  void waitingCursor(Runnable runnable) {
+    setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+    runnable.run();
+    setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
+  }
+
+  JComboBox<FontDisplayDto> createFontComboBox(JTextArea textArea, JTextField fontSizeTextField) {
+    Font font = textArea.getFont();
+    Font[] fonts = GraphicsEnvironment.getLocalGraphicsEnvironment().getAllFonts();
+    FontDisplayDto[] fontDisplayDtos = new FontDisplayDto[fonts.length];
+    int selectIndex = -1;
+    for (int i = 0; i < fonts.length; i++) {
+      FontDisplayDto fontDisplayDto = new FontDisplayDto();
+      fontDisplayDto.font = fonts[i];
+      fontDisplayDtos[i] = fontDisplayDto;
+      if (fontDisplayDto.font.getFontName().equals(font.getFontName())) {
+        selectIndex = i;
+      }
+    }
+    JComboBox<FontDisplayDto> comboBox = new JComboBox<>(fontDisplayDtos);
+    comboBox.setSelectedIndex(selectIndex);
+    comboBox.addActionListener(
+        e -> {
+          FontDisplayDto fontDisplayDto = (FontDisplayDto) comboBox.getSelectedItem();
+          textArea.setFont(
+              fontDisplayDto.font.deriveFont(Float.parseFloat(fontSizeTextField.getText())));
+        });
+    fontSizeTextField.setText(String.valueOf(font.getSize()));
+    fontSizeTextField.addFocusListener(
+        new FocusListener() {
+          @Override
+          public void focusGained(FocusEvent e) {
+            // TODO Auto-generated method stub
+
+          }
+
+          @Override
+          public void focusLost(FocusEvent e) {
+            FontDisplayDto fontDisplayDto = (FontDisplayDto) comboBox.getSelectedItem();
+            try {
+              textArea.setFont(
+                  fontDisplayDto.font.deriveFont(Float.parseFloat(fontSizeTextField.getText())));
+            } catch (NumberFormatException e1) {
+              fontSizeTextField.setText(String.valueOf(textArea.getFont().getSize()));
+            }
+          }
+        });
+    return comboBox;
   }
 
   /**
    * ファイルを更新
    *
-   * @param yamlFile
+   * @param yamlFile テンプレートyamlファイル
    */
   public void update(File yamlFile) {
     Map<String, Object> paramMap = createParameterMap();
@@ -177,17 +246,17 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 
   void draw(Template template, Map<String, Object> paramMap) {
 
-    try (PDDocument document = this.draft != null ? Loader.loadPDF(draft) : new PDDocument();
+    try (PDDocument document = isDisplayDraft() ? Loader.loadPDF(draft) : new PDDocument();
         Repty yamlPdf = new Repty(document, template); ) {
       // PDFドキュメントを作成
       yamlPdf.init();
-      yamlPdf.addKeys(textField.getText().split(" "));
-      if (draft == null) {
-        PDPage d = yamlPdf.createPage(paramMap);
-        document.addPage(d);
-      } else {
+      yamlPdf.addKeys(drawMapKeyTextField.getText().split(" "));
+      if (isDisplayDraft()) {
         PDPage d = document.getPage(0);
         yamlPdf.appendPage(paramMap, d);
+      } else {
+        PDPage d = yamlPdf.createPage(paramMap);
+        document.addPage(d);
       }
       PDFRenderer renderer = new PDFRenderer(document);
       yamlPdf
@@ -202,8 +271,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
                 }
               });
 
-      panel.setImage(renderer.renderImageWithDPI(0, 72));
-      panel.repaint();
+      imagePanel.setImage(renderer.renderImageWithDPI(0, 72));
+      imagePanel.repaint();
     } catch (NoSuchFieldException e) {
       // TODO Auto-generated catch block
       e.printStackTrace();
@@ -242,8 +311,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
   /**
    * ファイルを更新
    *
-   * @param yamlText
-   * @param parameterText
+   * @param yamlText テンプレートyamlテキスト
+   * @param parameterText パラメータテキスト
    */
   public void update(String yamlText, String parameterText) {
     Map<String, Object> paramMap = createParameterMap();
@@ -262,25 +331,68 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
    */
   @Override
   public void open(List<File> fileList) {
-    setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
-    if (fileList.size() > 0) {
-      try {
-        open(fileList.get(0));
-      } catch (IOException e) {
-        JOptionPane.showMessageDialog(this, e.getMessage());
-        e.printStackTrace();
-      }
-    }
-    setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
+    waitingCursor(
+        () -> {
+          if (fileList.size() > 0) {
+            try {
+              open(fileList.get(0));
+            } catch (IOException e) {
+              JOptionPane.showMessageDialog(this, e.getMessage());
+              e.printStackTrace();
+            }
+          }
+        });
   }
 
   @Override
   public void open(File file) throws IOException {
     String filename = file.getName();
     if (filename.matches(".*\\.[yY][aA]?[mM][lL]$")) {
-      watch(file);
+      loadYaml(file);
     } else if (filename.matches(".*\\.[pP][dD][fF]$")) {
       this.draft = file;
+      draftPathTextField.setText(file.getCanonicalPath());
+      draftDisplayCheckBox.setSelected(true);
+      update(editorText.getText(), parameterText.getText());
+    }
+  }
+
+  void loadYaml(File yamlFile) {
+    try (FileInputStream fis = new FileInputStream(yamlFile)) {
+      templatePathTextField.setText(yamlFile.getCanonicalPath());
+      editorText.setText(new String(fis.readAllBytes(), "UTF-8"));
+      Yaml yaml = new Yaml();
+      Template template = yaml.loadAs(editorText.getText(), Template.class);
+      drawMapKeyTextField.setText(
+          template.getDrawMap().keySet().stream().collect(Collectors.joining(" ")));
+      draw(template, createParameterMap());
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  boolean isDisplayDraft() {
+    return draft != null && draftDisplayCheckBox.isSelected();
+  }
+
+  void save(File file) {
+    if (editorText.getText().isBlank()) {
+      JOptionPane.showMessageDialog(this, "No data.");
+      return;
+    }
+    if (file.exists()) {
+      int result =
+          JOptionPane.showConfirmDialog(this, "Overwrite?", "Overwrite", JOptionPane.YES_NO_OPTION);
+      if (result != JOptionPane.YES_OPTION) {
+        return;
+      }
+    }
+    try (FileOutputStream fos = new FileOutputStream(file)) {
+      fos.write(editorText.getText().getBytes("UTF-8"));
+      fos.flush();
+    } catch (IOException e) {
+      JOptionPane.showMessageDialog(this, e.getMessage());
+      e.printStackTrace();
     }
   }
 }

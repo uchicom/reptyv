@@ -1,7 +1,6 @@
 // (C) 2024 uchicom
 package com.uchicom.reptyv;
 
-import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 
 /**
@@ -15,15 +14,8 @@ public class Main {
     // viewer起動
     SwingUtilities.invokeLater(
         () -> {
-          JTextArea editorText = new JTextArea();
-          JTextArea parameterText = new JTextArea();
-          ReptyViewer viewer = new ReptyViewer(editorText, parameterText);
-          ReptyEditor reptyEditor = new ReptyEditor(viewer, editorText);
-          ParameterEditor parameterEditor = new ParameterEditor(viewer, parameterText);
-
+          ReptyViewer viewer = new ReptyViewer();
           viewer.setVisible(true);
-          reptyEditor.setVisible(true);
-          parameterEditor.setVisible(true);
         });
   }
 }
