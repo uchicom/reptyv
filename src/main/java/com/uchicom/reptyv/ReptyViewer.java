@@ -65,7 +65,6 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
   JTextField templatePathTextField;
   JCheckBox draftDisplayCheckBox;
 
-  /** */
   private static final long serialVersionUID = 1L;
 
   private static final String CONF_FILE_PATH = "./conf/reptyv.properties";
@@ -227,7 +226,7 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
   /**
    * ファイルを更新
    *
-   * @param yamlFile
+   * @param yamlFile テンプレートyamlファイル
    */
   public void update(File yamlFile) {
     Map<String, Object> paramMap = createParameterMap();
@@ -312,8 +311,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
   /**
    * ファイルを更新
    *
-   * @param yamlText
-   * @param parameterText
+   * @param yamlText テンプレートyamlテキスト
+   * @param parameterText パラメータテキスト
    */
   public void update(String yamlText, String parameterText) {
     Map<String, Object> paramMap = createParameterMap();
