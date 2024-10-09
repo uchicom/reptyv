@@ -7,3 +7,9 @@
 Repty Viewer
 
 [Description](https://github.com/uchicom/reptyv/wiki)
+
+## mvn
+### ReptyV起動
+```
+mvn exec:java "-Dexec.mainClass=com.uchicom.reptyv.Main"
+```

@@ -29,6 +29,8 @@ import java.util.Map;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import org.apache.pdfbox.Loader;
@@ -48,20 +50,17 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
   private ImagePanel panel = new ImagePanel();
   private File draft;
   private JTextArea parameterText;
+  private JTextArea editorText;
 
   /** */
   private static final long serialVersionUID = 1L;
 
-  private static final String CONF_FILE_PATH = "./conf/pdfv.properties";
+  private static final String CONF_FILE_PATH = "./conf/reptyv.properties";
 
   public ReptyViewer() {
-    super(new File(CONF_FILE_PATH), "reptyv.window");
-    initComponents();
-  }
-
-  public ReptyViewer(JTextArea editorText, JTextArea parameterText) {
-    super(new File(CONF_FILE_PATH), "reptyv.window");
-    this.parameterText = parameterText;
+    super(new File(CONF_FILE_PATH), "reptyv");
+    this.editorText = new JTextArea();
+    this.parameterText = new JTextArea();
     KeyListener keyListener =
         new KeyListener() {
 
@@ -93,13 +92,26 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
   }
 
   private void initComponents() {
-    setTitle("ReptyViewer");
+    setTitle("ReptyV");
     setDefaultCloseOperation(DISPOSE_ON_CLOSE);
     FileOpener.installDragAndDrop(panel, this);
+    JSplitPane splitPane = new JSplitPane();
+    splitPane.setResizeWeight(0.7);
+    String divider = config.getProperty("reptyv.divider");
+    if (divider != null) {
+      splitPane.setDividerLocation(Integer.valueOf(divider));
+    }
+    splitPane.addPropertyChangeListener(
+        e -> config.put("reptyv.divider", String.valueOf(splitPane.getDividerLocation())));
     JPanel basePanel = new JPanel(new BorderLayout());
     basePanel.add(new JScrollPane(panel), BorderLayout.CENTER);
     basePanel.add(textField, BorderLayout.NORTH);
-    getContentPane().add(basePanel);
+    splitPane.setLeftComponent(basePanel);
+    JTabbedPane ctrlPanel = new JTabbedPane();
+    ctrlPanel.addTab("Editor", new JScrollPane(editorText));
+    ctrlPanel.addTab("Parameter", new JScrollPane(parameterText));
+    splitPane.setRightComponent(ctrlPanel);
+    getContentPane().add(splitPane);
     pack();
   }
 
