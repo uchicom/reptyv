@@ -17,6 +17,7 @@ import java.awt.event.FocusListener;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -64,6 +65,7 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
   JTextField draftPathTextField;
   JTextField templatePathTextField;
   JCheckBox draftDisplayCheckBox;
+  JTextField draftPageTextField;
 
   private static final long serialVersionUID = 1L;
 
@@ -117,6 +119,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
             }
           }
         };
+    draftPageTextField = new JTextField();
+    draftPageTextField.setText("0");
     parameterText.addKeyListener(keyListener);
     editorText.addKeyListener(keyListener);
     editorFontComboBox = createFontComboBox(editorText, editorFontSizeTextField);
@@ -132,6 +136,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
     splitPane.addPropertyChangeListener(
         e -> config.put("reptyv.divider", String.valueOf(splitPane.getDividerLocation())));
     JPanel basePanel = new JPanel(new BorderLayout());
+    BufferedImage defaultImage = new BufferedImage(100, 100, BufferedImage.TYPE_3BYTE_BGR);
+    imagePanel.setImage(defaultImage);
     basePanel.add(new JScrollPane(imagePanel), BorderLayout.CENTER);
     basePanel.add(drawMapKeyTextField, BorderLayout.NORTH);
     splitPane.setLeftComponent(basePanel);
@@ -154,6 +160,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
     configPanel.add(new JLabel("Template Yaml Path"), gbc);
     gbc.gridy = 3;
     configPanel.add(new JLabel("Draft PDF Path"), gbc);
+    gbc.gridy = 4;
+    configPanel.add(new JLabel("Draft Page"), gbc);
     gbc.gridx = 1;
     gbc.gridy = 0;
     configPanel.add(editorFontComboBox, gbc);
@@ -163,6 +171,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
     configPanel.add(templatePathTextField, gbc);
     gbc.gridy = 3;
     configPanel.add(draftPathTextField, gbc);
+    gbc.gridy = 4;
+    configPanel.add(draftPageTextField, gbc);
     gbc.gridx = 2;
     gbc.gridy = 0;
     configPanel.add(editorFontSizeTextField, gbc);
@@ -251,8 +261,10 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
       // PDFドキュメントを作成
       yamlPdf.init();
       yamlPdf.addKeys(drawMapKeyTextField.getText().split(" "));
+      int page = 0;
       if (isDisplayDraft()) {
-        PDPage d = document.getPage(0);
+        page = Integer.parseInt(draftPageTextField.getText());
+        PDPage d = document.getPage(page);
         yamlPdf.appendPage(paramMap, d);
       } else {
         PDPage d = yamlPdf.createPage(paramMap);
@@ -271,7 +283,7 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
                 }
               });
 
-      imagePanel.setImage(renderer.renderImageWithDPI(0, 72));
+      imagePanel.setImage(renderer.renderImageWithDPI(page, 72));
       imagePanel.repaint();
     } catch (NoSuchFieldException e) {
       // TODO Auto-generated catch block
