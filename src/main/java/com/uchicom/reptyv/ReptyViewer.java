@@ -131,6 +131,53 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
     draftPageTextField.setText("0");
     parameterText.addKeyListener(keyListener);
     editorText.addKeyListener(keyListener);
+    editorText.addMouseListener(
+        new MouseAdapter() {
+          @Override
+          public void mouseClicked(MouseEvent e) {
+            if (e.getClickCount() == 2) {
+              String selectedText = editorText.getSelectedText();
+              if (selectedText == null) {
+                return;
+              }
+              selectedText = selectedText.replaceAll(" ", "");
+              if (!selectedText.matches("[0-9,]+")) {
+                return;
+              }
+              pointerTextField.setText(selectedText);
+            }
+          }
+
+          boolean press = false;
+
+          @Override
+          public void mousePressed(MouseEvent e) {
+            press = true;
+          }
+          ;
+
+          @Override
+          public void mouseExited(MouseEvent e) {
+            press = false;
+          }
+          ;
+
+          @Override
+          public void mouseReleased(MouseEvent e) {
+            if (press) {
+              String selectedText = editorText.getSelectedText();
+              if (selectedText == null) {
+                return;
+              }
+              selectedText = selectedText.replaceAll(" ", "");
+              if (!selectedText.matches("[0-9,]+")) {
+                return;
+              }
+              pointerTextField.setText(selectedText);
+              press = false;
+            }
+          }
+        });
     editorFontComboBox = createFontComboBox(editorText, editorFontSizeTextField);
     parameterFontComboBox = createFontComboBox(parameterText, parameterFontSizeTextField);
 
@@ -199,7 +246,7 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
         });
 
     basePanel.add(new JScrollPane(imagePanel), BorderLayout.CENTER);
-    JPanel nothPanel = new JPanel(new GridLayout(1, 4));
+    JPanel nothPanel = new JPanel(new GridLayout(1, 5));
     nothPanel.add(new JLabel("DrawMapKeys:"));
     nothPanel.add(drawMapKeyTextField);
     nothPanel.add(new JLabel("Point(x,y[,x2,y2]):"));
