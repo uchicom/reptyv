@@ -20,6 +20,8 @@ import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -59,6 +61,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
   JTextField pointerTextField = new JTextField();
   JComboBox<SimpleEntry<String, Integer>> pointerOrderComboBox = new JComboBox<>();
   ImagePanel imagePanel = new ImagePanel(pointerOrderComboBox, pointerTextField);
+  JScrollPane imageScrollPane = new JScrollPane(imagePanel);
+  JLabel ratioLabel = new JLabel("Ratio:" + imagePanel.getRatioLabel() + "%");
   File draft;
   JTextArea parameterText;
   JTextArea editorText;
@@ -154,13 +158,11 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
           public void mousePressed(MouseEvent e) {
             press = true;
           }
-          ;
 
           @Override
           public void mouseExited(MouseEvent e) {
             press = false;
           }
-          ;
 
           @Override
           public void mouseReleased(MouseEvent e) {
@@ -244,9 +246,27 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
             }
           }
         });
+    imagePanel.addMouseWheelListener(
+        new MouseWheelListener() {
 
-    basePanel.add(new JScrollPane(imagePanel), BorderLayout.CENTER);
-    JPanel nothPanel = new JPanel(new GridLayout(1, 5));
+          @Override
+          public void mouseWheelMoved(MouseWheelEvent e) {
+            if ((e.getModifiersEx() & MouseEvent.CTRL_DOWN_MASK) != 0) {
+              // 拡大縮小
+              if (imagePanel.getRatio() > Constants.MIN_RATIO && e.getWheelRotation() < 0
+                  || imagePanel.getRatio() < Constants.MAX_RATIO && e.getWheelRotation() > 0) {
+                // 拡大縮小
+                imagePanel.addRatio(e.getWheelRotation());
+                // 拡大縮小ラベル設定
+                ratioLabel.setText("Ratio:" + imagePanel.getRatioLabel() + "%");
+                imagePanel.repaint();
+                imageScrollPane.doLayout();
+              }
+            }
+          }
+        });
+    basePanel.add(imageScrollPane, BorderLayout.CENTER);
+    JPanel nothPanel = new JPanel(new GridLayout(1, 6));
     nothPanel.add(new JLabel("DrawMapKeys:"));
     nothPanel.add(drawMapKeyTextField);
     nothPanel.add(new JLabel("Point(x,y[,x2,y2]):"));
@@ -275,6 +295,7 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
               }
             });
     nothPanel.add(pointerTextField);
+    nothPanel.add(ratioLabel);
     basePanel.add(nothPanel, BorderLayout.NORTH);
     splitPane.setLeftComponent(basePanel);
     JTabbedPane ctrlPanel = new JTabbedPane();
@@ -421,6 +442,7 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 
       imagePanel.setImage(renderer.renderImageWithDPI(page, 72));
       imagePanel.repaint();
+      imageScrollPane.doLayout();
     } catch (NoSuchFieldException e) {
       // TODO Auto-generated catch block
       e.printStackTrace();
