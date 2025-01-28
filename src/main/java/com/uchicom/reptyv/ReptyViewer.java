@@ -4,7 +4,6 @@ package com.uchicom.reptyv;
 import com.uchicom.repty.Repty;
 import com.uchicom.repty.dto.Template;
 import com.uchicom.ui.FileOpener;
-import com.uchicom.ui.ImagePanel;
 import com.uchicom.ui.ResumeFrame;
 import java.awt.BorderLayout;
 import java.awt.Cursor;
@@ -12,12 +11,12 @@ import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.GridLayout;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -38,6 +37,7 @@ import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.event.DocumentListener;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -52,7 +52,8 @@ import org.yaml.snakeyaml.Yaml;
 public class ReptyViewer extends ResumeFrame implements FileOpener {
 
   JTextField drawMapKeyTextField = new JTextField();
-  ImagePanel imagePanel = new ImagePanel();
+  JTextField pointerTextField = new JTextField();
+  ImagePanel imagePanel = new ImagePanel(pointerTextField);
   File draft;
   JTextArea parameterText;
   JTextArea editorText;
@@ -136,10 +137,33 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
     splitPane.addPropertyChangeListener(
         e -> config.put("reptyv.divider", String.valueOf(splitPane.getDividerLocation())));
     JPanel basePanel = new JPanel(new BorderLayout());
-    BufferedImage defaultImage = new BufferedImage(100, 100, BufferedImage.TYPE_3BYTE_BGR);
-    imagePanel.setImage(defaultImage);
     basePanel.add(new JScrollPane(imagePanel), BorderLayout.CENTER);
-    basePanel.add(drawMapKeyTextField, BorderLayout.NORTH);
+    JPanel nothPanel = new JPanel(new GridLayout(1, 4));
+    nothPanel.add(new JLabel("DrawMapKeys:"));
+    nothPanel.add(drawMapKeyTextField);
+    nothPanel.add(new JLabel("Point(x,y[,x2,y2]):"));
+    pointerTextField
+        .getDocument()
+        .addDocumentListener(
+            new DocumentListener() {
+
+              @Override
+              public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                imagePanel.repaint();
+              }
+
+              @Override
+              public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                imagePanel.repaint();
+              }
+
+              @Override
+              public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                imagePanel.repaint();
+              }
+            });
+    nothPanel.add(pointerTextField);
+    basePanel.add(nothPanel, BorderLayout.NORTH);
     splitPane.setLeftComponent(basePanel);
     JTabbedPane ctrlPanel = new JTabbedPane();
     ctrlPanel.addTab("Editor", new JScrollPane(editorText));
