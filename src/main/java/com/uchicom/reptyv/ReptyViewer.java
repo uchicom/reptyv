@@ -17,12 +17,16 @@ import java.awt.event.FocusListener;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionAdapter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +57,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
 
   JTextField drawMapKeyTextField = new JTextField();
   JTextField pointerTextField = new JTextField();
-  ImagePanel imagePanel = new ImagePanel(pointerTextField);
+  JComboBox<SimpleEntry<String, Integer>> pointerOrderComboBox = new JComboBox<>();
+  ImagePanel imagePanel = new ImagePanel(pointerOrderComboBox, pointerTextField);
   File draft;
   JTextArea parameterText;
   JTextArea editorText;
@@ -71,6 +76,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
   private static final long serialVersionUID = 1L;
 
   private static final String CONF_FILE_PATH = "./conf/reptyv.properties";
+
+  String pressPoint = null;
 
   public ReptyViewer() {
     super(new File(CONF_FILE_PATH), "reptyv");
@@ -137,11 +144,69 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
     splitPane.addPropertyChangeListener(
         e -> config.put("reptyv.divider", String.valueOf(splitPane.getDividerLocation())));
     JPanel basePanel = new JPanel(new BorderLayout());
+    imagePanel.addMouseListener(
+        new MouseAdapter() {
+          @Override
+          public void mousePressed(MouseEvent e) {
+
+            SimpleEntry<String, Integer> entry =
+                (SimpleEntry<String, Integer>) pointerOrderComboBox.getSelectedItem();
+            if (entry.getValue() == 1) {
+              pressPoint =
+                  imagePanel.getIntXFromUI(e.getX()) + "," + imagePanel.getIntYFromUI(e.getY());
+            } else {
+              pressPoint = imagePanel.getXFromUI(e.getX()) + "," + imagePanel.getYFromUI(e.getY());
+            }
+            pointerTextField.setText(pressPoint);
+          }
+
+          @Override
+          public void mouseReleased(MouseEvent e) {
+            pressPoint = null;
+          }
+
+          @Override
+          public void mouseExited(MouseEvent e) {
+            pressPoint = null;
+          }
+        });
+    imagePanel.addMouseMotionListener(
+        new MouseMotionAdapter() {
+
+          @Override
+          public void mouseDragged(MouseEvent e) {
+            if (pressPoint == null) {
+              return;
+            }
+            SimpleEntry<String, Integer> entry =
+                (SimpleEntry<String, Integer>) pointerOrderComboBox.getSelectedItem();
+            if (entry.getValue() == 1) {
+              pointerTextField.setText(
+                  pressPoint
+                      + ","
+                      + imagePanel.getIntXFromUI(e.getX())
+                      + ","
+                      + imagePanel.getIntYFromUI(e.getY()));
+            } else {
+              pointerTextField.setText(
+                  pressPoint
+                      + ","
+                      + imagePanel.getXFromUI(e.getX())
+                      + ","
+                      + imagePanel.getYFromUI(e.getY()));
+            }
+          }
+        });
+
     basePanel.add(new JScrollPane(imagePanel), BorderLayout.CENTER);
     JPanel nothPanel = new JPanel(new GridLayout(1, 4));
     nothPanel.add(new JLabel("DrawMapKeys:"));
     nothPanel.add(drawMapKeyTextField);
     nothPanel.add(new JLabel("Point(x,y[,x2,y2]):"));
+    pointerOrderComboBox.addItem(new SimpleEntry<>("整数", 1));
+    pointerOrderComboBox.addItem(new SimpleEntry<>("小数点以下第一位", 10));
+    pointerOrderComboBox.addItem(new SimpleEntry<>("小数点以下第２位", 100));
+    nothPanel.add(pointerOrderComboBox);
     pointerTextField
         .getDocument()
         .addDocumentListener(
