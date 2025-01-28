@@ -137,8 +137,6 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
     splitPane.addPropertyChangeListener(
         e -> config.put("reptyv.divider", String.valueOf(splitPane.getDividerLocation())));
     JPanel basePanel = new JPanel(new BorderLayout());
-    BufferedImage defaultImage = new BufferedImage(100, 100, BufferedImage.TYPE_3BYTE_BGR);
-    imagePanel.setImage(defaultImage);
     basePanel.add(new JScrollPane(imagePanel), BorderLayout.CENTER);
     JPanel nothPanel = new JPanel(new GridLayout(1, 4));
     nothPanel.add(new JLabel("DrawMapKeys:"));
