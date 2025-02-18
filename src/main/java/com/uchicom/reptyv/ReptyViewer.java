@@ -205,7 +205,7 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
                 return;
               }
               selectedText = selectedText.replaceAll(" ", "");
-              if (!selectedText.matches("[0-9,]+")) {
+              if (!selectedText.matches("[0-9,\\.]+")) {
                 return;
               }
               pointerTextField.setText(selectedText);
