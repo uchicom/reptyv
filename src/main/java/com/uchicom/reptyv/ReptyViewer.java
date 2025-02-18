@@ -12,6 +12,8 @@ import java.awt.GraphicsEnvironment;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.awt.event.InputEvent;
@@ -33,6 +35,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import javax.swing.AbstractAction;
+import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -43,7 +47,11 @@ import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
 import javax.swing.event.DocumentListener;
+import javax.swing.event.UndoableEditEvent;
+import javax.swing.event.UndoableEditListener;
+import javax.swing.undo.UndoManager;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -67,6 +75,8 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
   JTextArea parameterText;
   JTextArea editorText;
 
+  UndoManager editorUndoManager = new UndoManager();
+  UndoManager parameterUndoManager = new UndoManager();
   // 設定
   JComboBox<FontDisplayDto> editorFontComboBox;
   JComboBox<FontDisplayDto> parameterFontComboBox;
@@ -93,7 +103,25 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
     setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 
     editorText = new JTextArea();
+    editorText
+        .getDocument()
+        .addUndoableEditListener(
+            new UndoableEditListener() {
+              @Override
+              public void undoableEditHappened(UndoableEditEvent e) {
+                editorUndoManager.addEdit(e.getEdit());
+              }
+            });
     parameterText = new JTextArea();
+    parameterText
+        .getDocument()
+        .addUndoableEditListener(
+            new UndoableEditListener() {
+              @Override
+              public void undoableEditHappened(UndoableEditEvent e) {
+                parameterUndoManager.addEdit(e.getEdit());
+              }
+            });
     editorFontSizeTextField = new JTextField();
     parameterFontSizeTextField = new JTextField();
     templatePathTextField = new JTextField();
@@ -107,27 +135,32 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
         new KeyListener() {
 
           @Override
-          public void keyTyped(KeyEvent e) {
-            System.out.println(e);
-            // TODO Auto-generated method stub
-
-          }
+          public void keyTyped(KeyEvent e) {}
 
           @Override
-          public void keyReleased(KeyEvent e) {
-            System.out.println(e);
-            // TODO Auto-generated method stub
-
-          }
+          public void keyReleased(KeyEvent e) {}
 
           @Override
           public void keyPressed(KeyEvent e) {
-            System.out.println(e);
             if (KeyEvent.VK_F5 == e.getKeyCode()) {
               waitingCursor(() -> update(editorText.getText(), parameterText.getText()));
             } else if (KeyEvent.VK_S == e.getKeyCode()
                 && (InputEvent.CTRL_DOWN_MASK & e.getModifiersEx()) == InputEvent.CTRL_DOWN_MASK) {
               waitingCursor(() -> save(new File(templatePathTextField.getText())));
+            } else if (KeyEvent.VK_Y == e.getKeyCode()
+                && (InputEvent.CTRL_DOWN_MASK & e.getModifiersEx()) == InputEvent.CTRL_DOWN_MASK) {
+              if (e.getComponent() == editorText) {
+                redoEditor();
+              } else if (e.getComponent() == parameterText) {
+                redoParameter();
+              }
+            } else if (KeyEvent.VK_Z == e.getKeyCode()
+                && (InputEvent.CTRL_DOWN_MASK & e.getModifiersEx()) == InputEvent.CTRL_DOWN_MASK) {
+              if (e.getComponent() == editorText) {
+                undoEditor();
+              } else if (e.getComponent() == parameterText) {
+                undoParameter();
+              }
             }
           }
         };
@@ -299,8 +332,76 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
     basePanel.add(nothPanel, BorderLayout.NORTH);
     splitPane.setLeftComponent(basePanel);
     JTabbedPane ctrlPanel = new JTabbedPane();
-    ctrlPanel.addTab("Editor", new JScrollPane(editorText));
-    ctrlPanel.addTab("Parameter", new JScrollPane(parameterText));
+    JPanel editorPanel = new JPanel(new BorderLayout());
+    JPanel editorControlPanel = new JPanel();
+    editorControlPanel.add(
+        new JButton(
+            new AbstractAction("元に戻す(U)") {
+              {
+                putValue(MNEMONIC_KEY, (int) 'U');
+                putValue(
+                    ACCELERATOR_KEY,
+                    KeyStroke.getKeyStroke(KeyEvent.VK_Z, KeyEvent.CTRL_DOWN_MASK));
+              }
+
+              @Override
+              public void actionPerformed(ActionEvent e) {
+                undoEditor();
+              }
+            }));
+    editorControlPanel.add(
+        new JButton(
+            new AbstractAction("やり直す(R)") {
+              {
+                putValue(MNEMONIC_KEY, (int) 'R');
+                putValue(
+                    ACCELERATOR_KEY,
+                    KeyStroke.getKeyStroke(KeyEvent.VK_Y, KeyEvent.CTRL_DOWN_MASK));
+              }
+
+              @Override
+              public void actionPerformed(ActionEvent e) {
+                redoEditor();
+              }
+            }));
+    editorPanel.add(editorControlPanel, BorderLayout.NORTH);
+    editorPanel.add(new JScrollPane(editorText), BorderLayout.CENTER);
+    ctrlPanel.addTab("Editor", editorPanel);
+    JPanel parameterPanel = new JPanel(new BorderLayout());
+    JPanel parameterControlPanel = new JPanel();
+    parameterControlPanel.add(
+        new JButton(
+            new AbstractAction("元に戻す(U)") {
+              {
+                putValue(MNEMONIC_KEY, (int) 'U');
+                putValue(
+                    ACCELERATOR_KEY,
+                    KeyStroke.getKeyStroke(KeyEvent.VK_Z, KeyEvent.CTRL_DOWN_MASK));
+              }
+
+              @Override
+              public void actionPerformed(ActionEvent e) {
+                undoParameter();
+              }
+            }));
+    parameterControlPanel.add(
+        new JButton(
+            new AbstractAction("やり直す(R)") {
+              {
+                putValue(MNEMONIC_KEY, (int) 'R');
+                putValue(
+                    ACCELERATOR_KEY,
+                    KeyStroke.getKeyStroke(KeyEvent.VK_Y, KeyEvent.CTRL_DOWN_MASK));
+              }
+
+              @Override
+              public void actionPerformed(ActionEvent e) {
+                redoParameter();
+              }
+            }));
+    parameterPanel.add(parameterControlPanel, BorderLayout.NORTH);
+    parameterPanel.add(new JScrollPane(parameterText), BorderLayout.CENTER);
+    ctrlPanel.addTab("Parameter", parameterPanel);
     ctrlPanel.addTab("Config", new JScrollPane(createConfigPanel()));
     splitPane.setRightComponent(ctrlPanel);
     getContentPane().add(splitPane);
@@ -564,5 +665,37 @@ public class ReptyViewer extends ResumeFrame implements FileOpener {
       JOptionPane.showMessageDialog(this, e.getMessage());
       e.printStackTrace();
     }
+  }
+
+  public void redoEditor() {
+    if (!editorUndoManager.canRedo()) {
+      Toolkit.getDefaultToolkit().beep();
+      return;
+    }
+    editorUndoManager.redo();
+  }
+
+  public void undoEditor() {
+    if (!editorUndoManager.canUndo()) {
+      Toolkit.getDefaultToolkit().beep();
+      return;
+    }
+    editorUndoManager.undo();
+  }
+
+  public void redoParameter() {
+    if (!parameterUndoManager.canRedo()) {
+      Toolkit.getDefaultToolkit().beep();
+      return;
+    }
+    parameterUndoManager.redo();
+  }
+
+  public void undoParameter() {
+    if (!parameterUndoManager.canUndo()) {
+      Toolkit.getDefaultToolkit().beep();
+      return;
+    }
+    parameterUndoManager.undo();
   }
 }
