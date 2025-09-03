@@ -56,7 +56,7 @@
     <dependency>
       <groupId>com.uchicom</groupId>
       <artifactId>repty</artifactId>
-      <version>0.0.39</version>
+      <version>0.0.40</version>
     </dependency>
     <dependency>
       <groupId>com.uchicom</groupId>
